@@ -1,0 +1,9 @@
+[report]
+format = "markdown"
+
+[logs]
+tail = 50
+
+[checks]
+tools = true
+env = true

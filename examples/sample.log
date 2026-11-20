@@ -1,0 +1,10 @@
+2024-01-15T10:00:01Z INFO Starting demo application
+2024-01-15T10:00:02Z INFO Connecting to database
+2024-01-15T10:00:03Z DEBUG config password=demo_password_not_real
+2024-01-15T10:00:04Z INFO Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature
+2024-01-15T10:00:05Z WARN Failed login for user@example.com from 192.0.2.10
+2024-01-15T10:00:06Z INFO Fetching https://demo:secretpass@example.com/api
+2024-01-15T10:00:07Z INFO api_key=sk_test_fiction_only
+2024-01-15T10:00:08Z INFO token=abc.def.ghi
+2024-01-15T10:00:09Z INFO Ready on port 8000
+2024-01-15T10:00:10Z INFO Shutdown complete
