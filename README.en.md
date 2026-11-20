@@ -2,6 +2,8 @@
 
 **Language:** [Русский](README.md) | **English**
 
+Repository: [github.com/SirEdwinDrow/DevReport](https://github.com/SirEdwinDrow/DevReport)
+
 DevReport is a small cross-platform CLI utility for preparing diagnostic reports about a project's local environment (Windows and Linux).
 
 Typical flow: open a terminal in the project directory → `devreport collect` → get a short diagnosis → optionally attach a log explicitly → review sensitive-data warnings → attach the Markdown report to an Issue or send it to a colleague.
