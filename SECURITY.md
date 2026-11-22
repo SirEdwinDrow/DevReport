@@ -6,7 +6,9 @@
 
 ## Что считает DevReport чувствительным
 
-Утилита маскирует распространённые шаблоны: password/token/secret и составные ключи (`client_secret`, `AWS_SECRET_ACCESS_KEY`), JSON `"key":"…"`, YAML `key: …`, `export`/`setx`, Bearer/Basic, JWT, типичные префиксы токенов (`sk_test_`, `ghp_`, …), длинные base64-значения рядом с известными ключами, email, IPv4, домашний путь, credentials в URL.
+Утилита маскирует распространённые шаблоны: password/passwd/pass/pwd/passphrase/token/secret/key/auth/credential/session/cookie/jwt/bearer/csrf/signature и составные ключи с любым числом сегментов (`client_secret`, `AWS_ACCESS_KEY_ID`, `X-Amz-Signature`), JSON `"key":"…"` и `'key':'…'`, YAML `key: …`, `export`/`setx`, заголовки `Authorization:`/`Proxy-Authorization:` любых схем и `Cookie:`/`Set-Cookie:`, Bearer/Basic вне заголовков, JWT, PEM-блоки приватных ключей, типичные префиксы токенов (`sk_*`, `ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_`, `github_pat_`, `glpat-`, `xox*`, `xapp-`, `AKIA`/`ASIA`, `AIza`, `ya29.`, `npm_`, `pypi-`, `dop_v1_`, `dapi`, `hf_`, `sbp_`, `shp*_`, `sq0*`, `SG.`), длинные base64-значения рядом с известными ключами, email, IPv4, домашний путь, credentials в URL.
+
+При `--log` на файл вида `.env*` значения **всех** ключей маскируются независимо от имени.
 
 Это **неполная эвристика**, а не гарантия: нестандартные имена, свободный текст и неизвестные форматы могут остаться в отчёте.
 

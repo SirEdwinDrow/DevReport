@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -117,7 +118,8 @@ def test_build_report_with_port(project_dir: Path) -> None:
 
 
 def test_allowed_command_variants() -> None:
-    assert is_allowed_command("docker-compose.exe")
+    # .exe допускается только на Windows
+    assert is_allowed_command("docker-compose.exe") is (sys.platform == "win32")
     assert not is_allowed_command("evil.bat")
 
 
