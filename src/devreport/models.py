@@ -110,8 +110,6 @@ class Report:
         for tool in data.get("tools", []):
             if isinstance(tool.get("status"), Enum):
                 tool["status"] = tool["status"].value
-            elif hasattr(tool.get("status"), "value"):
-                tool["status"] = tool["status"]
         for check in data.get("checks", []):
             status = check.get("status")
             if isinstance(status, Enum):

@@ -13,15 +13,9 @@ DEFAULT_TIMEOUT = 5.0
 MAX_OUTPUT_BYTES = 8 * 1024
 
 # Только эти имена исполняемых файлов разрешены
-ALLOWED_COMMANDS: frozenset[str] = frozenset(
-    {
-        "git",
-        "git.exe",
-        "docker",
-        "docker.exe",
-        "docker-compose",
-        "docker-compose.exe",
-    }
+_ALLOWED_BASE: frozenset[str] = frozenset({"git", "docker", "docker-compose"})
+ALLOWED_COMMANDS: frozenset[str] = _ALLOWED_BASE | frozenset(
+    f"{name}.exe" for name in _ALLOWED_BASE
 )
 
 
@@ -36,21 +30,19 @@ class CommandResult:
     error_detail: str | None = None
 
 
-def _normalize_cmd_name(name: str) -> str:
-    base = Path(name).name.lower()
-    if sys.platform == "win32" and not base.endswith((".exe", ".bat", ".cmd", ".com")):
-        # allowlist хранит и с .exe
-        return base
-    return base
-
-
 def is_allowed_command(executable: str) -> bool:
+    """Разрешены только точные имена git/docker/docker-compose.
+
+    Суффикс .exe допускается только на Windows: на Linux исполняемый файл
+    может называться git.sh/git.com/git.foo и быть скриптом — расширение
+    там не является маркером исполняемости.
+    """
     name = Path(executable).name.lower()
-    if name in ALLOWED_COMMANDS:
+    if name in _ALLOWED_BASE:
         return True
-    # git / docker без суффикса
-    stem = Path(name).stem.lower()
-    return stem in {"git", "docker", "docker-compose"}
+    if sys.platform == "win32" and name.endswith(".exe"):
+        return name[: -len(".exe")] in _ALLOWED_BASE
+    return False
 
 
 def _path_entries() -> list[Path]:
@@ -83,15 +75,22 @@ def find_executable(name: str, *, project_root: Path | None = None) -> Path | No
 
     search_dirs = _path_entries()
     # На Windows также PATHEXT, но мы ищем только .exe для безопасности
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        cwd = None
     for directory in search_dirs:
-        if project_root is not None:
-            try:
-                from devreport.utils.paths import path_is_under
+        try:
+            from devreport.utils.paths import path_is_under
 
-                if path_is_under(directory, project_root):
-                    continue
-            except OSError:
+            # Не исполняем бинарники из проверяемого проекта и из cwd:
+            # cwd может не совпадать с project_root (--project указывает иначе).
+            if project_root is not None and path_is_under(directory, project_root):
                 continue
+            if cwd is not None and path_is_under(directory, cwd):
+                continue
+        except OSError:
+            continue
         for candidate_name in names:
             candidate = directory / candidate_name
             try:
@@ -102,8 +101,9 @@ def find_executable(name: str, *, project_root: Path | None = None) -> Path | No
                     continue
                 if sys.platform != "win32" and not os.access(candidate, os.X_OK):
                     continue
-                # Не исполняем .bat/.cmd
-                if candidate.suffix.lower() in {".bat", ".cmd"}:
+                # Исполняем только бессуффиксные файлы и .exe:
+                # .bat/.cmd/.com/.ps1 могут обойти ограничения интерпретатора
+                if candidate.suffix.lower() not in {"", ".exe"}:
                     continue
                 return candidate
             except OSError:
@@ -117,15 +117,15 @@ def find_executable(name: str, *, project_root: Path | None = None) -> Path | No
         return None
     found = Path(which)
     try:
-        # Исключаем текущую директорию
-        if found.parent.resolve() == Path.cwd().resolve():
-            return None
-        if project_root is not None:
-            from devreport.utils.paths import path_is_under
+        # Исключаем текущую директорию (и всё под ней)
+        from devreport.utils.paths import path_is_under
 
-            if path_is_under(found.parent, project_root):
-                return None
-        if found.suffix.lower() in {".bat", ".cmd"}:
+        if path_is_under(found.parent, Path.cwd()):
+            return None
+        if project_root is not None and path_is_under(found.parent, project_root):
+            return None
+        # shutil.which на Windows может вернуть .com/.bat/.ps1 через PATHEXT
+        if found.suffix.lower() not in {"", ".exe"}:
             return None
         return found
     except OSError:
@@ -188,6 +188,16 @@ def run_allowed(
                     )
             except OSError:
                 pass
+        from devreport.utils.paths import is_regular_file
+
+        if not is_regular_file(path):
+            return CommandResult(
+                argv=tuple(argv),
+                returncode=None,
+                stdout="",
+                not_found=True,
+                error_detail="not a regular file or symlink",
+            )
         if path.suffix.lower() in {".bat", ".cmd"}:
             return CommandResult(
                 argv=tuple(argv),

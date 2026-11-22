@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import os
+import stat
 from pathlib import Path
 
 
@@ -54,3 +56,27 @@ def path_is_under(candidate: Path, root: Path) -> bool:
             return False
     except OSError:
         return False
+
+
+def open_regular_file(path: Path) -> int:
+    """Атомарно открыть файл на чтение, отклоняя symlink и не-файлы.
+
+    На POSIX используется O_NOFOLLOW: symlink отклоняется ядром в момент
+    open(), что закрывает гонку «проверил is_symlink → открыл» (TOCTOU).
+    На Windows O_NOFOLLOW нет — предварительная проверка is_symlink()
+    остаётся best-effort, но fstat после open() всё равно отсекает
+    директории/FIFO/устройства.
+
+    Возвращает файловый дескриптор (клиент обязан закрыть).
+    Бросает OSError при отказе или ошибке доступа.
+    """
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, "not a regular file", str(path))
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
