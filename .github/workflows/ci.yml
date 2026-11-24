@@ -40,7 +40,11 @@ jobs:
         run: mypy
 
       - name: Pytest with coverage
-        run: pytest
+        # Чистый .coverage: pytest-cov 6.x падает DataError при combine
+        # statement-only и branch data (чужие/старые .coverage.*).
+        run: |
+          python -m coverage erase
+          pytest
 
       - name: Build wheel and sdist
         run: |

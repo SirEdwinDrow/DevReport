@@ -26,7 +26,8 @@
   рендера (`mask_dotenv_text`); задокументировано в limitations/SECURITY.
 - **Markdown**: HTML-метасимволы и `[]` экранируются во внешних полях.
 - **CI**: push на все ветки; actions закреплены по SHA; верхние границы
-  dev-deps; Dependabot (pip + github-actions).
+  dev-deps; Dependabot (pip + github-actions); `coverage erase` перед
+  pytest и явный `--cov-branch` (фикс DataError combine statement/branch).
 - Удалён мёртвый код (`_normalize_cmd_name`) и недостижимая ветка
   в `Report.to_dict`.
 
