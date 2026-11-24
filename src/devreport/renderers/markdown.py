@@ -15,6 +15,12 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
     def s(text: str) -> str:
         return sanitize_text(text, engine)
 
+    def se(text: str) -> str:
+        # Текст вне code-span: дополнительно экранируем HTML-метасимволы.
+        # Значения из внешних источников (stdout команд, содержимое логов)
+        # не должны превращаться в inline-HTML/разметку в отчёте.
+        return escape(sanitize_text(text, engine), quote=False)
+
     lines: list[str] = []
     lines.append("# DevReport")
     lines.append("")
@@ -27,9 +33,9 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
 
     lines.append("## Система")
     lines.append("")
-    lines.append(f"- ОС: {s(report.system.os_family)} / {s(report.system.os_release)}")
-    lines.append(f"- Архитектура: {s(report.system.architecture)}")
-    lines.append(f"- Python: {s(report.system.python_version)}")
+    lines.append(f"- ОС: {se(report.system.os_family)} / {se(report.system.os_release)}")
+    lines.append(f"- Архитектура: {se(report.system.architecture)}")
+    lines.append(f"- Python: {se(report.system.python_version)}")
     lines.append("")
 
     lines.append("## Инструменты")
@@ -38,8 +44,8 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
         lines.append("| Имя | Статус | Версия | Детали |")
         lines.append("| --- | --- | --- | --- |")
         for tool in sorted(report.tools, key=lambda t: t.name):
-            version = s(tool.version) if tool.version else "—"
-            detail = s(tool.detail) if tool.detail else "—"
+            version = se(tool.version) if tool.version else "—"
+            detail = se(tool.detail) if tool.detail else "—"
             status = tool.status.value if isinstance(tool.status, ToolStatus) else str(tool.status)
             lines.append(f"| {s(tool.name)} | `{status}` | {_cell(version)} | {_cell(detail)} |")
     else:
@@ -57,12 +63,12 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
     lines.append("")
     for check in sorted(report.checks, key=lambda c: c.code):
         status = check.status.value if isinstance(check.status, CheckStatus) else str(check.status)
-        lines.append(f"### `{s(check.code)}` — {s(check.title)} [`{status}`]")
+        lines.append(f"### `{s(check.code)}` — {se(check.title)} [`{status}`]")
         lines.append("")
-        lines.append(s(check.description))
+        lines.append(se(check.description))
         if check.recommendation:
             lines.append("")
-            lines.append(f"**Рекомендация:** {s(check.recommendation)}")
+            lines.append(f"**Рекомендация:** {se(check.recommendation)}")
         lines.append("")
 
     if report.env_comparison is not None:
@@ -71,7 +77,7 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
         lines.append("")
         lines.append(f"- status: `{env.status.value}`")
         if env.detail:
-            lines.append(f"- detail: {s(env.detail)}")
+            lines.append(f"- detail: {se(env.detail)}")
         lines.append(f"- missing_keys: {_keys(env.missing_keys, s)}")
         lines.append(f"- extra_keys: {_keys(env.extra_keys, s)}")
         lines.append(f"- duplicate_keys: {_keys(env.duplicate_keys, s)}")
@@ -91,7 +97,7 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
         lines.append(f"- port: `{port.port}`")
         lines.append(f"- status: `{port.status.value}`")
         if port.detail:
-            lines.append(f"- detail: {s(port.detail)}")
+            lines.append(f"- detail: {se(port.detail)}")
         lines.append("")
 
     if report.log_stats is not None and report.log_stats.requested:
@@ -106,7 +112,7 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
         lines.append(f"- truncated_by_line_length: {st.truncated_by_line_length}")
         lines.append(f"- decoding_replacements: {st.decoding_replacements}")
         if st.rejected_reason:
-            lines.append(f"- rejected: {s(st.rejected_reason)}")
+            lines.append(f"- rejected: {se(st.rejected_reason)}")
         lines.append("")
         if report.log_excerpt:
             fence = _safe_fence(report.log_excerpt)
@@ -118,7 +124,7 @@ def render_markdown(report: Report, engine: RedactionEngine | None = None) -> st
     lines.append("## Ограничения диагностики")
     lines.append("")
     for item in sorted(report.limitations):
-        lines.append(f"- {s(item)}")
+        lines.append(f"- {se(item)}")
     lines.append("")
 
     # Без активного HTML: экранируем на всякий случай уже сделано через sanitize;
@@ -134,7 +140,13 @@ def _keys(keys: tuple[str, ...], s: object) -> str:
 
 
 def _cell(text: str) -> str:
-    return text.replace("|", "\\|").replace("\n", " ")
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("\n", " ")
+    )
 
 
 def _safe_fence(content: str) -> str:

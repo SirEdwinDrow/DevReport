@@ -17,6 +17,26 @@ from devreport.service import build_report, merge_options, render_report
 from devreport.utils.io import OutputError, write_report_file
 from devreport.utils.paths import resolve_project_path
 
+
+def ensure_utf8_stdio() -> None:
+    """Перевести stdout/stderr на UTF-8, чтобы русский текст не падал на cp125x.
+
+    На Windows консоль часто в cp1251/cp1252: вывод help/сводки с кириллицей
+    даёт UnicodeEncodeError. reconfigure(errors='replace') безопасен и идемпотентен.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError, AttributeError):
+            # Закрытый/неперенастраиваемый поток — пропускаем
+            continue
+
+
+ensure_utf8_stdio()
+
 # stdout — только полный отчёт; stderr — сводка/прогресс/предупреждения
 err_console = Console(stderr=True)
 out_console = Console()
@@ -221,8 +241,10 @@ def _print_summary(report: object) -> None:
 
 
 def run() -> None:
+    ensure_utf8_stdio()
     app()
 
 
 if __name__ == "__main__":  # pragma: no cover
+    ensure_utf8_stdio()
     app()

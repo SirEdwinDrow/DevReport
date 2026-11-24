@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from devreport.models import LogStats
-from devreport.utils.paths import is_symlink
+from devreport.utils.paths import is_symlink, open_regular_file
 
 MAX_LOG_BYTES = 1 * 1024 * 1024  # 1 MiB
 MAX_LINE_LENGTH = 4 * 1024
@@ -79,24 +80,26 @@ def read_log_tail(path: Path, tail: int) -> LogReadResult:
             lines=[],
         )
 
+    # Атомарное открытие: O_NOFOLLOW на POSIX закрывает гонку
+    # «is_symlink → stat → open», fstat отсекает не-файлы.
     try:
-        file_size = path.stat().st_size
+        fd = open_regular_file(path)
     except OSError as exc:
         return LogReadResult(
             stats=LogStats(
                 requested=True,
                 path=str(path),
-                rejected_reason=f"stat: {exc.__class__.__name__}",
+                rejected_reason=f"чтение: {exc.__class__.__name__}",
             ),
             lines=[],
         )
 
-    read_size = min(file_size, MAX_LOG_BYTES)
-    truncated_by_size = file_size > MAX_LOG_BYTES
-    offset = max(0, file_size - read_size)
-
     try:
-        with path.open("rb") as handle:
+        with os.fdopen(fd, "rb") as handle:
+            file_size = os.fstat(handle.fileno()).st_size
+            read_size = min(file_size, MAX_LOG_BYTES)
+            truncated_by_size = file_size > MAX_LOG_BYTES
+            offset = max(0, file_size - read_size)
             handle.seek(offset)
             raw = handle.read(read_size)
     except OSError as exc:

@@ -33,10 +33,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    "pytest>=8.0,<9",
+    "pytest-cov>=5.0,<7",
+    "ruff>=0.6,<1",
+    "mypy>=1.11,<2",
 ]
 
 [project.scripts]
@@ -54,6 +54,7 @@ testpaths = ["tests"]
 addopts = [
     "--strict-markers",
     "--cov=devreport",
+    "--cov-branch",
     "--cov-report=term-missing",
     "--cov-fail-under=85",
 ]
@@ -63,6 +64,8 @@ pythonpath = ["src"]
 branch = true
 source = ["devreport"]
 omit = ["*/devreport/__main__.py"]
+# Не подхватывать чужие .coverage.* с другим режимом (statement vs branch).
+parallel = false
 
 [tool.coverage.report]
 exclude_lines = [

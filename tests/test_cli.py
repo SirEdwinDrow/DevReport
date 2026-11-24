@@ -21,6 +21,21 @@ def test_help() -> None:
     assert "DevReport" in result.stdout or "devreport" in result.stdout.lower()
 
 
+def test_ensure_utf8_stdio_reconfigures_latin1_stream() -> None:
+    """Регрессия Windows: поток в latin-1 должен перейти на utf-8."""
+    from io import BytesIO, TextIOWrapper
+    from unittest.mock import patch
+
+    from devreport.cli import ensure_utf8_stdio
+
+    buf = TextIOWrapper(BytesIO(), encoding="latin-1", errors="strict")
+    with patch("devreport.cli.sys.stdout", buf), patch("devreport.cli.sys.stderr", buf):
+        ensure_utf8_stdio()
+    assert buf.encoding.lower().replace("-", "") == "utf8"
+    buf.write("кириллица")
+    buf.flush()
+
+
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0

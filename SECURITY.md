@@ -6,7 +6,11 @@
 
 ## Что считает DevReport чувствительным
 
-Утилита маскирует распространённые шаблоны: password/token/secret и составные ключи (`client_secret`, `AWS_SECRET_ACCESS_KEY`), JSON `"key":"…"`, YAML `key: …`, `export`/`setx`, Bearer/Basic, JWT, типичные префиксы токенов (`sk_test_`, `ghp_`, …), длинные base64-значения рядом с известными ключами, email, IPv4, домашний путь, credentials в URL.
+Утилита маскирует распространённые шаблоны: password/passwd/pwd/passphrase/token/secret/api_key/access_key/credential(s)/csrf/jwt/bearer/private_key и составные ключи с любым числом сегментов (`client_secret`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCESS_KEY_ID`), JSON `"key":"…"` и `'key':'…'`, YAML `key: …`, `export`/`setx`, заголовки `Authorization:`/`Proxy-Authorization:` любых схем и `Cookie:`/`Set-Cookie:`, Bearer/Basic вне заголовков, JWT, PEM-блоки приватных ключей, типичные префиксы токенов (`sk_*`, `ghp_`/`gho_`/`…`, `github_pat_`, `glpat-`, `xox*`, `xapp-`, `AKIA`/`ASIA`, `AIza`, `ya29.`, `npm_`, `pypi-`, `dop_v1_`, `dapi`, `hf_`, `sbp_`, `shp*_`, `sq0*`, `SG.`), длинные base64-значения рядом с известными ключами, email, IPv4, домашний путь, credentials в URL.
+
+Голые сегменты вроде `key` / `session` / `signature` / `pass` / `cookie` намеренно **не** входят в словарь ключей — слишком много ложных срабатываний в диагностических логах.
+
+При `--log` на файл вида `.env*` значения **всех** ключей маскируются на границе рендера независимо от имени (`mask_dotenv_text`).
 
 Это **неполная эвристика**, а не гарантия: нестандартные имена, свободный текст и неизвестные форматы могут остаться в отчёте.
 
@@ -16,7 +20,8 @@
 
 - Не отправляет данные по сети.
 - Не читает логи без явного `--log`.
-- Не включает значения `.env` в отчёт.
-- Не выполняет команды из директории проверяемого проекта.
+- Не включает значения `.env` в отчёт (сравнение ключей — без значений).
+- Не выполняет команды из директории проверяемого проекта и из cwd.
+- Не следует symlink при чтении логов / `.env` / `.devreport.toml` (POSIX: `O_NOFOLLOW`; Windows: best-effort pre/post-check).
 - Не ходит в Docker daemon.
 - Не отключает маскирование флагом в MVP.

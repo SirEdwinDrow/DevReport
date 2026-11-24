@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
   pull_request:
 
 permissions:
@@ -11,6 +10,10 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # Windows: UTF-8 mode — иначе родительский pytest декодирует pipes как cp125x,
+    # а CLI после ensure_utf8_stdio пишет UTF-8 → UnicodeDecodeError в smoke.
+    env:
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -19,10 +22,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -41,11 +44,15 @@ jobs:
         run: mypy
 
       - name: Pytest with coverage
-        run: pytest
+        # Чистый .coverage: pytest-cov 6.x падает DataError при combine
+        # statement-only и branch data (чужие/старые .coverage.*).
+        run: |
+          python -m coverage erase
+          pytest
 
       - name: Build wheel and sdist
         run: |
-          pip install build
+          pip install "build>=1.2,<2"
           python -m build
 
       - name: Smoke test installed wheel

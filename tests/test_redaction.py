@@ -64,18 +64,19 @@ def test_export_setx_json_yaml_patterns() -> None:
 
 def test_bearer_without_authorization_header() -> None:
     engine = RedactionEngine()
-    out = engine.redact("token response Bearer eyJhbGciOiJIUzI1NiJ9.aa.bb")
-    assert "eyJhbGciOiJIUzI1NiJ9.aa.bb" not in out
+    fake_jwt = "eyJ_TEST_NOT_A_REAL.aa.bb"
+    out = engine.redact(f"token response Bearer {fake_jwt}")
+    assert fake_jwt not in out
     assert SECRET_LABEL in out
 
 
 def test_token_prefixes_and_base64_near_key() -> None:
     engine = RedactionEngine()
     b64 = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo="  # 32+ chars base64-ish
-    text = f"sk_test_fictionOnlyToken123 ghp_ExampleGitHubPat0001 secret {b64}"
+    text = f"sk_test_fictionOnlyToken123 ghp_TESTNOTAREALPAT0001 secret {b64}"
     out = engine.redact(text)
     assert "sk_test_fictionOnlyToken123" not in out
-    assert "ghp_ExampleGitHubPat0001" not in out
+    assert "ghp_TESTNOTAREALPAT0001" not in out
     assert b64 not in out
     assert "secret [REDACTED_SECRET]=" not in out
     assert f"secret {SECRET_LABEL}" in out
@@ -156,7 +157,7 @@ def test_shared_engine_aliases_stable_across_sections() -> None:
 
 def test_bearer_basic_jwt() -> None:
     engine = RedactionEngine()
-    jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.sig"
+    jwt = "eyJ_TEST_HEADER.eyJ_TEST_PAYLOAD.TEST_SIGNATURE"
     text = f"Authorization: Bearer {jwt}\nAuthorization: Basic dXNlcjpwYXNz"
     out = engine.redact(text)
     assert jwt not in out
