@@ -28,6 +28,8 @@
 - **CI**: push на все ветки; actions закреплены по SHA; верхние границы
   dev-deps; Dependabot (pip + github-actions); `coverage erase` перед
   pytest и явный `--cov-branch` (фикс DataError combine statement/branch).
+- **Windows stdout/stderr**: `ensure_utf8_stdio()` при старте CLI —
+  кириллица в help/сводке больше не падает на cp125x (`UnicodeEncodeError`).
 - Удалён мёртвый код (`_normalize_cmd_name`) и недостижимая ветка
   в `Report.to_dict`.
 
