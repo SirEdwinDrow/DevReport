@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from devreport.models import CheckStatus, EnvComparison
-from devreport.utils.paths import is_symlink
+from devreport.utils.paths import is_symlink, open_regular_file
 
 MAX_ENV_FILE_BYTES = 256 * 1024
 
@@ -66,10 +67,13 @@ def _read_env_file(path: Path) -> tuple[str | None, str | None]:
             return None, "symlink отклонён"
         if not path.is_file():
             return None, "не обычный файл"
-        size = path.stat().st_size
-        if size > MAX_ENV_FILE_BYTES:
-            return None, f"файл превышает лимит {MAX_ENV_FILE_BYTES} байт"
-        data = path.read_bytes()
+        # Атомарное открытие: O_NOFOLLOW закрывает гонку «проверил → открыл»
+        fd = open_regular_file(path)
+        with os.fdopen(fd, "rb") as handle:
+            size = os.fstat(handle.fileno()).st_size
+            if size > MAX_ENV_FILE_BYTES:
+                return None, f"файл превышает лимит {MAX_ENV_FILE_BYTES} байт"
+            data = handle.read(MAX_ENV_FILE_BYTES + 1)
         text = data.decode("utf-8", errors="replace")
         return text, None
     except OSError as exc:

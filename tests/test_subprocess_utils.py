@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,9 +11,26 @@ from devreport.utils.subprocess import find_executable, is_allowed_command, run_
 
 def test_allowlist() -> None:
     assert is_allowed_command("git")
-    assert is_allowed_command("docker.exe")
+    assert is_allowed_command("docker")
+    assert is_allowed_command("docker-compose")
     assert not is_allowed_command("python")
     assert not is_allowed_command("curl")
+    # Суффикс .exe допускается только на Windows
+    assert is_allowed_command("docker.exe") is (sys.platform == "win32")
+
+
+def test_allowlist_rejects_arbitrary_suffixes() -> None:
+    # Раньше матчинг по stem пропускал git.foo/git.sh/git.com — регрессия
+    for name in (
+        "git.foo",
+        "git.sh",
+        "git.com",
+        "git.bat",
+        "git.cmd",
+        "docker-compose.sh",
+        "git.py",
+    ):
+        assert not is_allowed_command(name), name
 
 
 def test_refuses_non_allowlist(project_dir: Path) -> None:

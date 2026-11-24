@@ -8,35 +8,60 @@ from pathlib import Path
 
 SECRET_LABEL = "[REDACTED_SECRET]"
 
-# Ключ: точное имя или составное (*_secret, *_token, AWS_SECRET_ACCESS_KEY, …).
-# «secretary» не матчится: секретный сегмент только как целое слово/сегмент по _/-.
+# Секретный сегмент ключа: точное слово или сегмент составного имени по _/-.
+# «secretary» не матчится: сегмент только целым словом.
+# Намеренно НЕ включаем голые `key` / `session` / `signature` / `pass` /
+# `cookie` / `auth` — слишком много ложных срабатываний в обычных логах.
+# Для AWS_ACCESS_KEY_ID — отдельный сегмент access[_-]?key.
+_SECRET_SEGMENT = (
+    r"password|passwd|pwd|passphrase|token|secret|api[_-]?key|access[_-]?key|"
+    r"credentials?|csrf|xsrf|jwt|bearer|private[_-]?key"
+)
+
+# Ключ: точное имя, составное с любым числом сегментов-префиксов
+# (AWS_SECRET_ACCESS_KEY, MY_APP_API_KEY), либо секретный префикс (token_id).
 _SECRET_KEY = (
     r"(?:"
-    r"password|passwd|token|secret|api[_-]?key|"
-    r"[A-Za-z_][A-Za-z0-9]*[_-](?:password|passwd|token|secret|api[_-]?key)"
-    r"(?:[_-][A-Za-z0-9_.-]+)?|"
-    r"(?:password|passwd|token|secret|api[_-]?key)[_-][A-Za-z0-9_.-]+"
+    rf"(?:{_SECRET_SEGMENT})|"
+    rf"(?:[A-Za-z0-9]+[_-])+(?:{_SECRET_SEGMENT})(?:[_-][A-Za-z0-9_.-]+)?|"
+    rf"(?:{_SECRET_SEGMENT})[_-][A-Za-z0-9_.-]+"
     r")"
 )
 
-_VALUE = r"(?:[^\s,;\"']+|\"[^\"]*\"|'[^']*')"
+# Значение для secret-like ключей: кавычки или до конца строки/запятой/;.
+# EOL только для уже secret-like ключей (не для произвольных KEY=value).
+_VALUE = r"(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\r\n,;]+)"
 
 # KEY=value / KEY: value (dotenv, YAML scalar, shell)
 _SECRET_KV = re.compile(rf"(?i)\b({_SECRET_KEY})(\s*[:=]\s*)({_VALUE})")
 
-# JSON: "client_secret": "…" / "api_key":"…"
+# JSON / JS-литерал: "key":"…" / 'key': '…' (парные кавычки через \1)
 _SECRET_JSON = re.compile(
-    rf'(?i)(")({_SECRET_KEY})("\s*:\s*)("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|[^\s,}}\]]+)'
+    rf"(?i)([\"'])({_SECRET_KEY})(\1\s*:\s*)"
+    r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,}}\]]+)"
 )
 
 # Windows setx NAME value
 _SETX = re.compile(rf"(?i)\b(setx\s+)({_SECRET_KEY})(\s+)({_VALUE})")
 
+# HTTP-заголовки: значение маскируется целиком до конца строки
+# (Digest/NTLM/любые схемы и многотокенные значения).
+_AUTH_HEADER = re.compile(r"(?i)\b((?:proxy[_-]?)?authorization\s*:\s*)[^\r\n]+")
+_COOKIE_HEADER = re.compile(r"(?i)\b((?:set-cookie|cookie)\s*:\s*)[^\r\n]+")
+
+# PEM-блоки приватных ключей: до END-маркера или до конца текста
+# (хвост лога может обрезать END).
+_PEM_BLOCK = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z0-9 ]*-----"
+    r".*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[A-Z0-9 ]*-----|$)",
+    re.DOTALL,
+)
+
 # export/set уже покрываются _SECRET_KV на KEY=value; дополнительно:
 # setx выше; shell `export KEY=value` — через KV.
 
-_BEARER = re.compile(r"(?i)((?:Authorization:\s*)?Bearer\s+)\S+")
-_BASIC = re.compile(r"(?i)((?:Authorization:\s*)?Basic\s+)\S+")
+_BEARER = re.compile(r"(?i)\b(Bearer\s+)\S+")
+_BASIC = re.compile(r"(?i)\b(Basic\s+)\S+")
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 
 # Высокоуверенные префиксы токенов (низкий FP)
@@ -46,10 +71,29 @@ _TOKEN_PREFIX = re.compile(
     r"sk_test_[A-Za-z0-9]+|"
     r"rk_live_[A-Za-z0-9]+|"
     r"pk_live_[A-Za-z0-9]+|"
-    r"ghp_[A-Za-z0-9]+|"
-    r"gho_[A-Za-z0-9]+|"
+    r"sk-ant-[A-Za-z0-9_-]{10,}|"
+    r"sk-proj-[A-Za-z0-9_-]{10,}|"
+    r"sk-or-[A-Za-z0-9_-]{10,}|"
+    r"sk-svcacct-[A-Za-z0-9_-]{10,}|"
+    r"sk-[A-Za-z0-9_-]{20,}|"
+    r"gh[pousr]_[A-Za-z0-9]{10,}|"
     r"github_pat_[A-Za-z0-9_]+|"
-    r"xox[bprs]-[A-Za-z0-9-]+"
+    r"glpat-[A-Za-z0-9_-]{15,}|"
+    r"xox[baprs]-[A-Za-z0-9-]+|"
+    r"xapp-[A-Za-z0-9-]+|"
+    r"AKIA[0-9A-Z]{16}|"
+    r"ASIA[0-9A-Z]{16}|"
+    r"AIza[0-9A-Za-z_-]{35}|"
+    r"ya29\.[0-9A-Za-z_-]{10,}|"
+    r"npm_[0-9A-Za-z]{30,}|"
+    r"pypi-[A-Za-z0-9_-]{20,}|"
+    r"dop_v1_[0-9a-f]{64}|"
+    r"dapi[0-9a-f]{32}|"
+    r"hf_[A-Za-z0-9]{30,}|"
+    r"sbp_[0-9a-f]{40}|"
+    r"shp(?:at|ca|pa)_[0-9a-f]{32}|"
+    r"sq0[a-z]{3}-[A-Za-z0-9_-]{20,}|"
+    r"SG\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
     r")\b"
 )
 
@@ -105,6 +149,11 @@ class RedactionEngine:
 
         # Сначала URL credentials
         result = _URL_CREDS.sub(rf"\1{SECRET_LABEL}:{SECRET_LABEL}@", result)
+
+        # Заголовки и PEM-блоки — до KV, чтобы значения уходили целиком
+        result = _AUTH_HEADER.sub(rf"\1{SECRET_LABEL}", result)
+        result = _COOKIE_HEADER.sub(rf"\1{SECRET_LABEL}", result)
+        result = _PEM_BLOCK.sub(SECRET_LABEL, result)
 
         def _kv_sub(match: re.Match[str]) -> str:
             return f"{match.group(1)}{match.group(2)}{SECRET_LABEL}"
@@ -164,6 +213,37 @@ def strip_ansi(text: str) -> str:
 
 def neutralize_controls(text: str) -> str:
     return _CTRL.sub("", text)
+
+
+_DOTENV_LINE = re.compile(
+    r"(?m)^([ \t]*#[ \t]*|[ \t]*)(export[ \t]+)?([A-Za-z_][A-Za-z0-9_.-]*[ \t]*=[ \t]*)"
+    r"([^\r\n]*)$"
+)
+
+
+def mask_dotenv_text(text: str) -> str:
+    """Маскировать значения всех строк KEY=value (для файлов вида .env*).
+
+    В отличие от RedactionEngine, имя ключа не проверяется: в dotenv-файле
+    секретным считается значение любого ключа, включая закомментированные строки.
+    """
+    if not text:
+        return text
+
+    def _sub(match: re.Match[str]) -> str:
+        prefix = f"{match.group(1)}{match.group(2) or ''}{match.group(3)}"
+        if not match.group(4).strip():
+            return match.group(0)
+        return f"{prefix}{SECRET_LABEL}"
+
+    return _DOTENV_LINE.sub(_sub, text)
+
+
+def is_dotenv_log_path(path: str | Path | None) -> bool:
+    """True, если путь указывает на файл вида .env* (граница полного mask)."""
+    if path is None:
+        return False
+    return Path(path).name.lower().startswith(".env")
 
 
 def sanitize_text(text: str, engine: RedactionEngine | None = None) -> str:

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from devreport.utils.paths import is_symlink
+from devreport.utils.paths import is_symlink, open_regular_file
 
 MAX_CONFIG_BYTES = 64 * 1024
 ALLOWED_FORMATS = frozenset({"markdown", "json"})
@@ -42,10 +43,13 @@ def load_config(project_root: Path) -> AppConfig:
     try:
         if not path.is_file():
             raise ConfigError(".devreport.toml не является обычным файлом")
-        size = path.stat().st_size
-        if size > MAX_CONFIG_BYTES:
-            raise ConfigError(f".devreport.toml превышает лимит {MAX_CONFIG_BYTES} байт")
-        raw = path.read_bytes()
+        # Атомарное открытие: O_NOFOLLOW закрывает гонку «проверил → открыл»
+        fd = open_regular_file(path)
+        with os.fdopen(fd, "rb") as handle:
+            size = os.fstat(handle.fileno()).st_size
+            if size > MAX_CONFIG_BYTES:
+                raise ConfigError(f".devreport.toml превышает лимит {MAX_CONFIG_BYTES} байт")
+            raw = handle.read(MAX_CONFIG_BYTES + 1)
     except ConfigError:
         raise
     except OSError as exc:
