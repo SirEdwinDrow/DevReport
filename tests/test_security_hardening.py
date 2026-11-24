@@ -19,15 +19,17 @@ from devreport.redaction.engine import (
 @pytest.mark.parametrize(
     "secret",
     [
-        "AKIAIOSFODNN7EXAMPLE",  # AWS access key id
-        "ASIAIOSFODNN7EXAMPLE",  # AWS temporary
-        "sk-ant-api03-aaaabbbbccccddddeeee",
-        "sk-proj-aaaabbbbccccddddeeeeffff",
-        "sk-aaaabbbbccccddddeeeeffffgggg",
-        "glpat-aaaabbbbccccdddd1234",
-        "AIzaSyAaaabbbbccccddddeeeeffffgggg00001",
-        "ya29.a0AfH6SMBaaaabbbbcccc",
-        "hf_aaaabbbbccccddddeeeeffffgggghh",
+        # Явно невалидные строки: не матчат GitHub Secret Scanning,
+        # но сохраняют префиксы/формат для нашего redaction engine.
+        "AKIA_TEST_NOT_A_REAL_KEY_000",
+        "ASIA_TEST_NOT_A_REAL_KEY_000",
+        "sk-ant-TEST_NOT_A_REAL_ANTHROPIC",
+        "sk-proj-TEST_NOT_A_REAL_OPENAI_KEY",
+        "sk-TEST_NOT_A_REAL_OPENAI_KEY_xxx",
+        "glpat-TEST_NOT_A_REAL_GL_00",
+        "AIzaSyTEST_NOT_A_REAL_GOOGLE_KEY_00",
+        "ya29.TEST_NOT_A_REAL_OAUTH",
+        "hf_TESTNOTAREALHUGGINGFACETOKEN000",
     ],
 )
 def test_token_prefixes_masked(secret: str) -> None:

@@ -81,9 +81,11 @@ _TOKEN_PREFIX = re.compile(
     r"glpat-[A-Za-z0-9_-]{15,}|"
     r"xox[baprs]-[A-Za-z0-9-]+|"
     r"xapp-[A-Za-z0-9-]+|"
-    r"AKIA[0-9A-Z]{16}|"
-    r"ASIA[0-9A-Z]{16}|"
-    r"AIza[0-9A-Za-z_-]{35}|"
+    # Underscore/TEST-варианты допускаем: тестовые фикстуры не должны
+    # совпадать с GitHub Secret Scanning (строгий AKIA[0-9A-Z]{16} / AIza…{35}).
+    r"AKIA[0-9A-Z_]{8,}|"
+    r"ASIA[0-9A-Z_]{8,}|"
+    r"AIza[0-9A-Za-z_-]{20,}|"
     r"ya29\.[0-9A-Za-z_-]{10,}|"
     r"npm_[0-9A-Za-z]{30,}|"
     r"pypi-[A-Za-z0-9_-]{20,}|"
