@@ -10,6 +10,10 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # Windows: UTF-8 mode — иначе родительский pytest декодирует pipes как cp125x,
+    # а CLI после ensure_utf8_stdio пишет UTF-8 → UnicodeDecodeError в smoke.
+    env:
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
